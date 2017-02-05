@@ -64,6 +64,7 @@ class Agent:
         self.goForward()
         self.turnAround()
 
+
     def getCellAhead(self):
         return self.cell.neighbour[self.dir]
 

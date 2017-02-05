@@ -1,0 +1,3 @@
+Currently, the mouse effectively follows the cheese everywhere (Max + reward) and tries not to step into the cat's square. Effectively, it's not 'fearing' the cat.
+Add the following change(s):
+Take the square directly opposite to where the cat is, and add some small + reward to it. This way, along with following the cheese (more reward), it would try and avoid the cat as much as possible.

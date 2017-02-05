@@ -10,16 +10,27 @@ import qlearn_mod_random as qlearn # to use the alternative exploration method
 #import qlearn # to use standard exploration method
 reload(qlearn)
 
+#DOF to move in grid
 directions = 8
 
-lookdist = 2
+#Mouse perceptiveness to environment
+lookdist = 3
 lookcells = []
 for i in range(-lookdist,lookdist+1):
     for j in range(-lookdist,lookdist+1):
         if (abs(i) + abs(j) <= lookdist) and (i != 0 or j != 0):
             lookcells.append((i,j))
 
+#for respawns
 def pickRandomLocation():
+    while 1:
+        x = random.randrange(3,world.width-2)
+        y = random.randrange(3,world.height-2)
+        cell = world.getCell(x, y)
+        if not (cell.wall or len(cell.agents) > 0):
+            return cell
+
+def pickRandomLocationM2():
     while 1:
         x = random.randrange(world.width)
         y = random.randrange(world.height)
@@ -27,7 +38,19 @@ def pickRandomLocation():
         if not (cell.wall or len(cell.agents) > 0):
             return cell
 
+def pickRandomLocationM1():
+    while 1:
+        x = cheese.cell.x + random.randrange(-2,3)
+        y = cheese.cell.y + random.randrange(-2,3)
+        
+        # x = random.randrange(world.width)
+        # y = random.randrange(world.height)
+        if (x>=0 and x<world.width and y<world.height and y>=0):
+            cell = world.getCell(x, y)
+            if not (cell.wall or len(cell.agents) > 0):
+                return cell
 
+#define a board
 class Cell(cellular.Cell):
     wall = False
 
@@ -43,68 +66,73 @@ class Cell(cellular.Cell):
         else:
             self.wall = False
 
-
+#define a cat
 class Cat(cellular.Agent):
     cell = None
     score = 0
     colour = 'orange'
 
-    def update(self):
+    def update(self):   
         cell = self.cell
-        if cell != mouse.cell:
+        if cell != mouse.cell:  #if mouse not caught, goes greedily towards mouse
             self.goTowards(mouse.cell)
-            while cell == self.cell:
+            while cell == self.cell:   #if best=wall,i.e. self.cell, pick random
                 self.goInDirection(random.randrange(directions))
 
-
+#define cheese
 class Cheese(cellular.Agent):
     colour = 'yellow'
 
     def update(self):
         pass
 
-
+#define mouse
 class Mouse(cellular.Agent):
     colour = 'gray'
 
     def __init__(self):
-        self.ai = None
+        self.ai = None   #stores the Q-learning implementation
         self.ai = qlearn.QLearn(actions=range(directions),
-                                alpha=0.1, gamma=0.9, epsilon=0.1)
-        self.eaten = 0
+                                alpha=0.8, gamma=0.8, epsilon=0.2)
+        self.eaten = 0  #performance
         self.fed = 0
-        self.lastState = None
+        self.lastState = None #log for learning
         self.lastAction = None
 
     def update(self):
         # calculate the state of the surrounding cells
+        # returns tuple with states of cells within FOV of mouse
         state = self.calcState()
         # asign a reward of -1 by default
         reward = -1
 
-        # observe the reward and update the Q-value
+        ## observe the reward and update the Q-value
+
+        # eaten by cat, update q-val by reward -100 for s(a)->s', respawn
         if self.cell == cat.cell:
             self.eaten += 1
             reward = -100
             if self.lastState is not None:
                 self.ai.learn(self.lastState, self.lastAction, reward, state)
-            self.lastState = None
+            self.lastState = None   #restart run
+            if len(mouse.ai.q)<9960:
+                self.cell = pickRandomLocationM1()
+            else:
+                self.cell = pickRandomLocationM2()
 
-            self.cell = pickRandomLocation()
-            return
-
+        #eats cheese, update q-val by reward 50 for s(a)->s'
         if self.cell == cheese.cell:
             self.fed += 1
-            reward = 50
+            reward = 80
             cheese.cell = pickRandomLocation()
 
-        if self.lastState is not None:
+        if self.lastState is not None:  #learn the last step
             self.ai.learn(self.lastState, self.lastAction, reward, state)
 
         # Choose a new action and execute it
         state = self.calcState()
         print(state)
-        action = self.ai.chooseAction(state)
+        action = self.ai.chooseAction(state)    #action based on maxQ policy
         self.lastState = state
         self.lastAction = action
 
@@ -124,9 +152,10 @@ class Mouse(cellular.Agent):
         return tuple([cellvalue(self.world.getWrappedCell(self.cell.x + j, self.cell.y + i))
                       for i,j in lookcells])
 
+
+cheese = Cheese()
 mouse = Mouse()
 cat = Cat()
-cheese = Cheese()
 
 world = cellular.World(Cell, directions=directions, filename='../worlds/waco.txt')
 world.age = 0
